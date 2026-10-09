@@ -117,8 +117,9 @@ function render() {
   renderRolling(rolling);
 
   const list = thresholds(total, { kyuchi: state.kyuchi, rolling: latest });
+  const groupNames = { self: '本人への影響', spouse: '夫への影響' };
   $('thresholds').replaceChildren(
-    ...list.map((t) => {
+    ...list.flatMap((t, i) => {
       const amount = t.over
         ? `${yen(-t.remaining)}円 超えています`
         : `あと ${yen(t.remaining)}円`;
@@ -137,12 +138,14 @@ function render() {
         ]),
         el('span', { className: 'th-limit', textContent: t.limitLabel ?? `${yen(t.limit)}円まで` }),
       ]);
-      return el('li', { className: t.over ? 'over' : '' }, [
+      const item = el('li', { className: t.over ? 'over' : '' }, [
         title,
         bar,
         el('p', { className: 'th-amount', textContent: amount }),
         el('p', { className: 'sub', textContent: [perMonth, t.note].filter(Boolean).join('。') }),
       ]);
+      const heading = t.group !== list[i - 1]?.group;
+      return heading ? [el('li', { className: 'group', textContent: groupNames[t.group] }), item] : [item];
     }),
   );
 

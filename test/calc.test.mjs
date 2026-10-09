@@ -43,23 +43,24 @@ test('住民税：119万円まではかからない（1級地）', () => {
   assert.equal(residentTax(1_500_000, 1).incomeLevy, 30_500);
 });
 
-test('基準の一覧：金額と並び順', () => {
+test('基準の一覧：金額と並び順（本人への影響 → 夫への影響）', () => {
   const list = thresholds(1_000_000, { kyuchi: 1, rolling: { total: 1_060_000 } });
   assert.deepEqual(
     list.map((t) => [t.id, t.limit]),
     [
       ['resident', 1_190_000],
       ['insurance', 1_299_999],
+      ['incomeTax', 1_780_000],
       ['spouseDeduction', 1_360_000],
       ['specialFull', 1_690_000],
-      ['incomeTax', 1_780_000],
       ['specialEnd', 2_070_000],
     ],
   );
   const ins = list.find((t) => t.id === 'insurance');
   assert.equal(ins.total, 1_060_000);
   assert.equal(ins.remaining, 239_999);
-  assert.equal(thresholds(1_360_001)[2].over, true);
+  assert.equal(thresholds(1_360_001).find((t) => t.id === 'spouseDeduction').over, true);
+  assert.deepEqual(list.map((t) => t.group), ['self', 'self', 'self', 'spouse', 'spouse', 'spouse']);
 });
 
 test('住民税：均等割の金額は設定で変えられる', () => {

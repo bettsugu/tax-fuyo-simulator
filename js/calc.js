@@ -71,7 +71,8 @@ export function rollingTotals(prev, cur, commuteMonthly = 0) {
   });
 }
 
-// 「各基準まであといくら」の一覧。金額はすべて年間の給与収入（税金は交通費を除く）。
+// 「各基準まであといくら」の一覧。本人への影響（self）→ 夫への影響（spouse）の順に並べる。
+// 金額はすべて年間の給与収入（税金は交通費を除く）。
 // rolling は rollingTotals のうち画面に出したい月の1件。社会保険の扶養だけはこれで見る。
 export function thresholds(revenue, { kyuchi = 1, rolling } = {}) {
   const min = RULES.salaryDeductionMin;
@@ -80,6 +81,7 @@ export function thresholds(revenue, { kyuchi = 1, rolling } = {}) {
   const list = [
     {
       id: 'resident',
+      group: 'self',
       name: '住民税がかからない',
       limit: RULES.resident.perCapitaExemptIncome[kyuchi] + min,
       note: `超えると翌年度に均等割がかかる。所得に応じた分（所得割）は${(
@@ -89,6 +91,7 @@ export function thresholds(revenue, { kyuchi = 1, rolling } = {}) {
     },
     {
       id: 'insurance',
+      group: 'self',
       name: '社会保険の扶養',
       limit: dep.limit - 1,
       limitLabel: `${dep.limit.toLocaleString('ja-JP')}円未満`,
@@ -99,38 +102,40 @@ export function thresholds(revenue, { kyuchi = 1, rolling } = {}) {
       provisional: !dep.confirmed,
     },
     {
-      id: 'spouseDeduction',
-      name: '配偶者控除',
-      limit: s.spouseDeductionIncome + min,
-      note: '超えても配偶者特別控除に切り替わり、控除額はしばらく同じ',
-      source: 'ntaAramashi',
-    },
-    {
-      id: 'specialFull',
-      name: '配偶者特別控除が満額',
-      limit: s.specialFullIncome + min,
-      note: '超えると配偶者側の控除が少しずつ減る',
-      source: 'ntaAramashi',
-    },
-    {
       id: 'incomeTax',
-      name: '本人の所得税がかからない',
+      group: 'self',
+      name: '所得税がかからない',
       limit: min + RULES.basicDeduction[0].amount,
       note: '超えた分に所得税がかかる',
       source: 'ntaAramashi',
     },
     {
+      id: 'spouseDeduction',
+      group: 'spouse',
+      name: '配偶者控除',
+      limit: s.spouseDeductionIncome + min,
+      note: '超えると配偶者特別控除に切り替わる。夫の控除額は同じ38万円のまま',
+      source: 'ntaAramashi',
+    },
+    {
+      id: 'specialFull',
+      group: 'spouse',
+      name: '配偶者特別控除が満額',
+      limit: s.specialFullIncome + min,
+      note: '超えると夫の控除が少しずつ減り、夫の税金が増える',
+      source: 'ntaAramashi',
+    },
+    {
       id: 'specialEnd',
+      group: 'spouse',
       name: '配偶者特別控除がなくなる',
       limit: s.specialEndIncome + min,
-      note: '超えると配偶者側の控除がゼロになる',
+      note: '超えると夫の控除がゼロになる',
       source: 'ntaAramashi',
     },
   ];
-  return list
-    .map((t) => {
-      const total = t.total ?? revenue;
-      return { ...t, total, remaining: t.limit - total, over: total > t.limit };
-    })
-    .sort((a, b) => a.limit - b.limit);
+  return list.map((t) => {
+    const total = t.total ?? revenue;
+    return { ...t, total, remaining: t.limit - total, over: total > t.limit };
+  });
 }
