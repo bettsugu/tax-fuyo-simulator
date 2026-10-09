@@ -33,11 +33,11 @@ test('所得税：178万円まではかからない', () => {
 
 test('住民税：119万円まではかからない（1級地）', () => {
   assert.equal(residentTax(1_190_000, 1).tax, 0);
-  assert.equal(residentTax(1_190_001, 1).perCapita, 5_000);
+  assert.equal(residentTax(1_190_001, 1).perCapita, 5_500);
   // 3級地は均等割だけ先にかかる
   assert.deepEqual(
     { ...residentTax(1_150_000, 3) },
-    { income: 410_000, incomeLevy: 0, perCapita: 5_000, tax: 5_000 },
+    { income: 410_000, incomeLevy: 0, perCapita: 5_500, tax: 5_500 },
   );
   // 150万円：所得76万 − 43万 = 33万 → 10% = 33,000 − 調整控除2,500 = 30,500
   assert.equal(residentTax(1_500_000, 1).incomeLevy, 30_500);
@@ -63,8 +63,8 @@ test('基準の一覧：金額と並び順', () => {
 });
 
 test('住民税：均等割の金額は設定で変えられる', () => {
-  assert.equal(residentTax(1_150_000, 3, 5_500).tax, 5_500);
-  assert.equal(residentTax(1_120_000, 3, 5_500).tax, 0);
+  assert.equal(residentTax(1_150_000, 3, 5_000).tax, 5_000);
+  assert.equal(residentTax(1_120_000, 3, 5_000).tax, 0);
 });
 
 test('社会保険の扶養：直近12か月の累計', () => {

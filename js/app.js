@@ -19,7 +19,7 @@ function emptyState() {
     months: Array.from({ length: 12 }, () => [null, null]),
     // 去年の分。社会保険の扶養（直近12か月の累計）にだけ使う
     prevMonths: Array.from({ length: 12 }, () => [null, null]),
-    kyuchi: 1,
+    kyuchi: RULES.resident.defaultKyuchi,
     perCapita: null,
     commuteMonthly: null,
   };
