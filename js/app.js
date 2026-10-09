@@ -1,6 +1,6 @@
 // 画面と保存。入力した金額は localStorage（この端末の中）だけに置き、どこにも送らない。
 import { RULES } from './rules.js';
-import { incomeTax, residentTax, thresholds } from './calc.js';
+import { incomeTax, residentTax, thresholds, rollingTotals } from './calc.js';
 
 const STORAGE_KEY = `tax-fuyo-simulator:${RULES.year}`;
 const $ = (id) => document.getElementById(id);
@@ -17,9 +17,11 @@ function emptyState() {
     names: ['1か所目', '2か所目'],
     // months[月-1] = [1か所目, 2か所目]。未入力は null
     months: Array.from({ length: 12 }, () => [null, null]),
+    // 去年の分。社会保険の扶養（直近12か月の累計）にだけ使う
+    prevMonths: Array.from({ length: 12 }, () => [null, null]),
     kyuchi: 1,
     perCapita: null,
-    commute: null,
+    commuteMonthly: null,
   };
 }
 
@@ -33,14 +35,15 @@ function normalize(raw) {
       if (typeof name === 'string' && name.trim()) state.names[i] = name.slice(0, 12);
     });
   }
-  if (Array.isArray(raw.months)) {
-    raw.months.slice(0, 12).forEach((pair, m) => {
-      if (Array.isArray(pair)) state.months[m] = [amount(pair[0]), amount(pair[1])];
+  ['months', 'prevMonths'].forEach((key) => {
+    if (!Array.isArray(raw[key])) return;
+    raw[key].slice(0, 12).forEach((pair, m) => {
+      if (Array.isArray(pair)) state[key][m] = [amount(pair[0]), amount(pair[1])];
     });
-  }
+  });
   if ([1, 2, 3].includes(raw.kyuchi)) state.kyuchi = raw.kyuchi;
   state.perCapita = amount(raw.perCapita);
-  state.commute = amount(raw.commute);
+  state.commuteMonthly = amount(raw.commuteMonthly);
   return state;
 }
 
@@ -68,10 +71,12 @@ function el(tag, props = {}, children = []) {
   return node;
 }
 
-function buildMonths() {
-  const body = $('months');
+// key は 'months'（今年）か 'prevMonths'（去年）
+function buildMonths(bodyId, key) {
+  const body = $(bodyId);
+  const yearLabel = key === 'months' ? '' : '去年';
   body.replaceChildren();
-  state.months.forEach((pair, m) => {
+  state[key].forEach((pair, m) => {
     const cells = pair.map((value, i) => {
       const input = el('input', {
         className: 'yen',
@@ -80,14 +85,14 @@ function buildMonths() {
         placeholder: '−',
         value: value === null ? '' : yen(value),
       });
-      input.setAttribute('aria-label', `${m + 1}月 ${i + 1}か所目`);
+      input.setAttribute('aria-label', `${yearLabel}${m + 1}月 ${i + 1}か所目`);
       input.addEventListener('input', () => {
-        state.months[m][i] = toNumber(input.value);
+        state[key][m][i] = toNumber(input.value);
         save();
         render();
       });
       input.addEventListener('blur', () => {
-        const v = state.months[m][i];
+        const v = state[key][m][i];
         input.value = v === null ? '' : yen(v);
       });
       return el('td', {}, [input]);
@@ -106,14 +111,23 @@ function render() {
     `${state.names[0]} ${yen(sums[0])}円 ／ ${state.names[1]} ${yen(sums[1])}円` +
     (blank ? ` ・ 未入力 ${blank}か月` : '');
 
-  const list = thresholds(total, { kyuchi: state.kyuchi, commute: state.commute ?? 0 });
+  const rolling = rollingTotals(state.prevMonths, state.months, state.commuteMonthly ?? 0);
+  const latest = rolling.findLast((r) => r.entered);
+  const windowLabel = (r) => (r.month === 12 ? '今年1月〜12月' : `去年${r.month + 1}月〜今年${r.month}月`);
+  renderRolling(rolling);
+
+  const list = thresholds(total, { kyuchi: state.kyuchi, rolling: latest });
   $('thresholds').replaceChildren(
     ...list.map((t) => {
       const amount = t.over
         ? `${yen(-t.remaining)}円 超えています`
         : `あと ${yen(t.remaining)}円`;
-      const perMonth =
-        !t.over && blank ? `未入力の${blank}か月でならすと 月${yen(Math.floor(t.remaining / blank))}円まで` : '';
+      let perMonth = '';
+      if (t.rolling) {
+        perMonth = latest ? `${windowLabel(latest)}の累計 ${yen(t.total)}円` : '今年の給与を入れると出ます';
+      } else if (!t.over && blank) {
+        perMonth = `未入力の${blank}か月でならすと 月${yen(Math.floor(t.remaining / blank))}円まで`;
+      }
       const bar = el('div', { className: 'bar' }, [el('span')]);
       bar.firstChild.style.width = `${Math.min(100, (t.total / t.limit) * 100)}%`;
       const title = el('div', { className: 'row' }, [
@@ -138,6 +152,23 @@ function render() {
   $('tax-resident').textContent = `${yen(rt.tax)}円`;
 }
 
+// 社会保険の扶養：月ごとの直近12か月の累計。これからの月は「その月に入れられる残り」になる
+function renderRolling(rolling) {
+  $('rolling').replaceChildren(
+    ...rolling.map((r) =>
+      el('tr', { className: [r.over ? 'over' : '', r.entered ? '' : 'future'].join(' ').trim() }, [
+        el('th', { scope: 'row', textContent: `${r.month}月` }),
+        el('td', { textContent: `${yen(r.total)}円` }),
+        el('td', { textContent: r.over ? `${yen(-r.remaining)}円 超過` : `あと ${yen(r.remaining)}円` }),
+      ]),
+    ),
+  );
+  const missing = rolling.some((r) => r.entered && r.missingPrev > 0);
+  $('rolling-warning').textContent = missing
+    ? '去年の給与に未入力の月があるため、累計が実際より少なく出ています。下の「去年の給与」に入れてください。'
+    : '';
+}
+
 function bindSettings() {
   [0, 1].forEach((i) => {
     const input = $(`name-${i}`);
@@ -154,7 +185,7 @@ function bindSettings() {
     save();
     render();
   };
-  ['commute', 'perCapita'].forEach((key) => {
+  ['commuteMonthly', 'perCapita'].forEach((key) => {
     const input = $(key);
     const show = () => (input.value = state[key] === null ? '' : yen(state[key]));
     show();
@@ -208,7 +239,8 @@ function buildSources() {
 }
 
 function start() {
-  buildMonths();
+  buildMonths('months', 'months');
+  buildMonths('prev-months', 'prevMonths');
   bindSettings();
   render();
 }

@@ -28,6 +28,16 @@
       <ul id="thresholds" class="thresholds"></ul>
     </section>
 
+    <section class="card" aria-labelledby="h-roll">
+      <h2 id="h-roll">社会保険の扶養：直近12か月の累計</h2>
+      <p class="sub">その月までの12か月分（交通費込み）の合計です。130万円未満に収まっているかを月ごとに見ます。まだ入れていない月の「あと」は、その月に受け取れる残りです。</p>
+      <table class="rolling">
+        <thead><tr><th scope="col">月</th><th scope="col">累計</th><th scope="col">130万円まで</th></tr></thead>
+        <tbody id="rolling"></tbody>
+      </table>
+      <p class="sub warning" id="rolling-warning" role="status"></p>
+    </section>
+
     <section class="card" aria-labelledby="h-tax">
       <h2 id="h-tax">本人の税金の目安</h2>
       <dl class="tax">
@@ -50,6 +60,12 @@
         </thead>
         <tbody id="months"></tbody>
       </table>
+      <details>
+        <summary>去年の給与（社会保険の扶養の判定に使う）</summary>
+        <table class="months">
+          <tbody id="prev-months"></tbody>
+        </table>
+      </details>
     </section>
 
     <section class="card" aria-labelledby="h-set">
@@ -67,8 +83,8 @@
         <input id="perCapita" class="yen" type="text" inputmode="numeric" placeholder="5,000">
       </label>
       <label class="field">
-        <span>年間の交通費（社会保険の扶養の判定に足す）</span>
-        <input id="commute" class="yen" type="text" inputmode="numeric" placeholder="0">
+        <span>月々の交通費（2か所の合計。社会保険の扶養の判定に足す）</span>
+        <input id="commuteMonthly" class="yen" type="text" inputmode="numeric" placeholder="0">
       </label>
     </section>
 
@@ -86,7 +102,7 @@
     <section class="card notes" aria-labelledby="h-note">
       <h2 id="h-note">注意と出どころ</h2>
       <p>このアプリの結果は目安です。最終的な判断は共済組合・税務署・市役所が行います。</p>
-      <p>社会保険の扶養は、1月〜12月の合計ではなく、労働契約からの見込みや過去1年間の累計で判断されます。</p>
+      <p>社会保険の扶養は、労働条件通知書がない場合の見方（交通費を含む直近12か月の累計）で出しています。</p>
       <ul id="sources"></ul>
     </section>
   </main>

@@ -48,9 +48,32 @@ export function residentTax(revenue, kyuchi = 1, perCapitaAmount = RULES.residen
   return { income, incomeLevy, perCapita, tax: incomeLevy + perCapita };
 }
 
+// 社会保険の扶養：その月までの直近12か月の累計（交通費を含む総支給額）を月ごとに出す。
+// prev は去年、cur は今年の [1か所目, 2か所目] × 12か月。未入力は null。
+// commuteMonthly は月々の交通費（2か所の合計）で、給与を入れた月にだけ足す。
+export function rollingTotals(prev, cur, commuteMonthly = 0) {
+  const paid = [...prev, ...cur].map((pair) =>
+    pair[0] === null && pair[1] === null ? null : (pair[0] ?? 0) + (pair[1] ?? 0) + commuteMonthly,
+  );
+  const limit = RULES.dependentInsurance.limit - 1;
+  return cur.map((_, i) => {
+    const window = paid.slice(i + 1, i + 13);
+    const total = window.reduce((sum, v) => sum + (v ?? 0), 0);
+    return {
+      month: i + 1,
+      total,
+      remaining: limit - total,
+      over: total > limit,
+      entered: paid[i + 12] !== null,
+      // 累計に入るはずの去年の月のうち、未入力の数（あると累計が少なく出る）
+      missingPrev: window.slice(0, 11 - i).filter((v) => v === null).length,
+    };
+  });
+}
+
 // 「各基準まであといくら」の一覧。金額はすべて年間の給与収入（税金は交通費を除く）。
-// commute は年間の非課税交通費。社会保険の扶養だけは交通費も足して見る。
-export function thresholds(revenue, { kyuchi = 1, commute = 0 } = {}) {
+// rolling は rollingTotals のうち画面に出したい月の1件。社会保険の扶養だけはこれで見る。
+export function thresholds(revenue, { kyuchi = 1, rolling } = {}) {
   const min = RULES.salaryDeductionMin;
   const s = RULES.spouse;
   const dep = RULES.dependentInsurance;
@@ -69,9 +92,9 @@ export function thresholds(revenue, { kyuchi = 1, commute = 0 } = {}) {
       name: '社会保険の扶養',
       limit: dep.limit - 1,
       limitLabel: `${dep.limit.toLocaleString('ja-JP')}円未満`,
-      total: revenue + commute,
-      note:
-        `1月〜12月の合計で見た目安。実際は労働契約からの見込み、または過去1年間の累計（交通費を含む）で判断される。月額の目安は${dep.monthly.toLocaleString('ja-JP')}円未満`,
+      total: rolling?.total ?? 0,
+      rolling: true,
+      note: '交通費を含む総支給額の、直近12か月の累計で見る。超えた月の翌月1日から扶養を外れる',
       source: 'kyosai',
       provisional: !dep.confirmed,
     },

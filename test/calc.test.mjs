@@ -2,7 +2,7 @@
 // 期待値は国税庁「令和8年4月 源泉所得税の改正のあらまし」の表から取っている。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { salaryIncome, incomeTax, residentTax, thresholds } from '../js/calc.js';
+import { salaryIncome, incomeTax, residentTax, thresholds, rollingTotals } from '../js/calc.js';
 
 test('給与所得：あらまし(2)ハの表どおり', () => {
   assert.equal(salaryIncome(740_999), 0);
@@ -44,7 +44,7 @@ test('住民税：119万円まではかからない（1級地）', () => {
 });
 
 test('基準の一覧：金額と並び順', () => {
-  const list = thresholds(1_000_000, { kyuchi: 1, commute: 60_000 });
+  const list = thresholds(1_000_000, { kyuchi: 1, rolling: { total: 1_060_000 } });
   assert.deepEqual(
     list.map((t) => [t.id, t.limit]),
     [
@@ -65,4 +65,26 @@ test('基準の一覧：金額と並び順', () => {
 test('住民税：均等割の金額は設定で変えられる', () => {
   assert.equal(residentTax(1_150_000, 3, 5_500).tax, 5_500);
   assert.equal(residentTax(1_120_000, 3, 5_500).tax, 0);
+});
+
+test('社会保険の扶養：直近12か月の累計', () => {
+  const year = (a, b) => Array.from({ length: 12 }, () => [a, b]);
+  const prev = year(60_000, 40_000);
+  const cur = year(null, null);
+  cur[0] = [70_000, 40_000];
+  cur[1] = [70_000, null];
+  const r = rollingTotals(prev, cur, 5_000);
+  // 1月：去年2〜12月（105,000×11）＋今年1月（115,000）
+  assert.equal(r[0].total, 105_000 * 11 + 115_000);
+  assert.equal(r[0].remaining, 1_299_999 - 1_270_000);
+  // 2月：去年3〜12月（×10）＋今年1月＋2月（75,000）
+  assert.equal(r[1].total, 105_000 * 10 + 115_000 + 75_000);
+  assert.deepEqual([r[1].entered, r[2].entered, r[1].missingPrev], [true, false, 0]);
+  // 未入力の月は0円として数える。12月は今年の分だけ
+  assert.equal(r[11].total, 115_000 + 75_000);
+  // 去年が未入力なら、足りない月の数がわかる
+  assert.equal(rollingTotals(year(null, null), cur)[0].missingPrev, 11);
+  assert.equal(rollingTotals(year(null, null), cur)[11].missingPrev, 0);
+  // ちょうど130万円は超過
+  assert.equal(rollingTotals(year(null, null), [[1_300_000, null], ...year(null, null).slice(1)])[0].over, true);
 });
