@@ -1,0 +1,23 @@
+# 実際の給与額・収入などの入力データ（公開リポジトリに入れない）
+data/
+*.local.json
+export*.json
+*.csv
+
+# 共済組合のしおりなど、手元の参考資料
+reference/
+
+# 鍵・パスワード類
+.env
+.env.*
+
+# Claude Code の端末ごとの設定
+.claude/settings.local.json
+
+# Windows が自動で作るファイル
+Thumbs.db
+desktop.ini
+
+# 開発用の道具が作るフォルダ
+node_modules/
+dist/
