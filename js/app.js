@@ -15,13 +15,13 @@ function emptyState() {
   return {
     year: RULES.year,
     names: ['1か所目', '2か所目'],
-    // months[月-1] = [1か所目, 2か所目]。未入力は null
-    months: Array.from({ length: 12 }, () => [null, null]),
+    // months[月-1] = [1か所目の給与, 2か所目の給与, 交通費（2か所の合計）]。未入力は null
+    // 交通費は社会保険の扶養（直近12か月の累計）にだけ使う。税金の計算には入れない
+    months: Array.from({ length: 12 }, () => [null, null, null]),
     // 去年の分。社会保険の扶養（直近12か月の累計）にだけ使う
-    prevMonths: Array.from({ length: 12 }, () => [null, null]),
+    prevMonths: Array.from({ length: 12 }, () => [null, null, null]),
     kyuchi: RULES.resident.defaultKyuchi,
     perCapita: null,
-    commuteMonthly: null,
   };
 }
 
@@ -35,15 +35,21 @@ function normalize(raw) {
       if (typeof name === 'string' && name.trim()) state.names[i] = name.slice(0, 12);
     });
   }
+  // 以前は交通費を「毎月同じ額」の1つだけで持っていた。その形のデータは、
+  // 給与を入れてあった月にその額を入れて、前と同じ累計になるように引き継ぐ
+  const oldCommute = amount(raw.commuteMonthly);
   ['months', 'prevMonths'].forEach((key) => {
     if (!Array.isArray(raw[key])) return;
-    raw[key].slice(0, 12).forEach((pair, m) => {
-      if (Array.isArray(pair)) state[key][m] = [amount(pair[0]), amount(pair[1])];
+    raw[key].slice(0, 12).forEach((row, m) => {
+      if (!Array.isArray(row)) return;
+      const salary = [amount(row[0]), amount(row[1])];
+      const hasSalary = salary.some((v) => v !== null);
+      const commute = row.length > 2 ? amount(row[2]) : hasSalary ? oldCommute : null;
+      state[key][m] = [...salary, commute];
     });
   });
   if ([1, 2, 3].includes(raw.kyuchi)) state.kyuchi = raw.kyuchi;
   state.perCapita = amount(raw.perCapita);
-  state.commuteMonthly = amount(raw.commuteMonthly);
   return state;
 }
 
@@ -76,16 +82,17 @@ function buildMonths(bodyId, key) {
   const body = $(bodyId);
   const yearLabel = key === 'months' ? '' : '去年';
   body.replaceChildren();
-  state[key].forEach((pair, m) => {
-    const cells = pair.map((value, i) => {
+  const columns = (i) => (i < 2 ? `${i + 1}か所目` : '交通費');
+  state[key].forEach((row, m) => {
+    const cells = row.map((value, i) => {
       const input = el('input', {
-        className: 'yen',
+        className: i < 2 ? 'yen' : 'yen commute',
         type: 'text',
         inputMode: 'numeric',
         placeholder: '−',
         value: value === null ? '' : yen(value),
       });
-      input.setAttribute('aria-label', `${yearLabel}${m + 1}月 ${i + 1}か所目`);
+      input.setAttribute('aria-label', `${yearLabel}${m + 1}月 ${columns(i)}`);
       input.addEventListener('input', () => {
         state[key][m][i] = toNumber(input.value);
         save();
@@ -111,7 +118,10 @@ function render() {
     `${state.names[0]} ${yen(sums[0])}円 ／ ${state.names[1]} ${yen(sums[1])}円` +
     (blank ? ` ・ 未入力 ${blank}か月` : '');
 
-  const rolling = rollingTotals(state.prevMonths, state.months, state.commuteMonthly ?? 0);
+  $('prev-name-0').textContent = state.names[0];
+  $('prev-name-1').textContent = state.names[1];
+
+  const rolling = rollingTotals(state.prevMonths, state.months);
   const latest = rolling.findLast((r) => r.entered);
   const windowLabel = (r) => (r.month === 12 ? '今年1月〜12月' : `去年${r.month + 1}月〜今年${r.month}月`);
   renderRolling(rolling);
@@ -188,7 +198,7 @@ function bindSettings() {
     save();
     render();
   };
-  ['commuteMonthly', 'perCapita'].forEach((key) => {
+  ['perCapita'].forEach((key) => {
     const input = $(key);
     const show = () => (input.value = state[key] === null ? '' : yen(state[key]));
     show();

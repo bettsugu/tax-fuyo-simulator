@@ -112,6 +112,10 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .months { width: 100%; border-collapse: collapse; margin-top: 8px; table-layout: fixed; }
 .months th, .months td { padding: 3px; }
 .months th:first-child { width: 3.2em; font-weight: 400; color: var(--muted); text-align: left; }
+.months th.col-label { font-size: 0.82rem; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
+.months th.col-label:last-child, .months input.commute { color: var(--muted); }
+/* 4列だとiPhoneの幅では1マスが狭いので、表の中だけ左右の余白を詰める */
+.months input.yen, .months input.name { padding-left: 6px; padding-right: 6px; }
 
 input, select, button { font: inherit; color: inherit; }
 

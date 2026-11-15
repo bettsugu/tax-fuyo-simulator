@@ -69,12 +69,12 @@ test('住民税：均等割の金額は設定で変えられる', () => {
 });
 
 test('社会保険の扶養：直近12か月の累計', () => {
-  const year = (a, b) => Array.from({ length: 12 }, () => [a, b]);
-  const prev = year(60_000, 40_000);
+  const year = (a, b, c = null) => Array.from({ length: 12 }, () => [a, b, c]);
+  const prev = year(60_000, 40_000, 5_000);
   const cur = year(null, null);
-  cur[0] = [70_000, 40_000];
-  cur[1] = [70_000, null];
-  const r = rollingTotals(prev, cur, 5_000);
+  cur[0] = [70_000, 40_000, 5_000];
+  cur[1] = [70_000, null, 5_000];
+  const r = rollingTotals(prev, cur);
   // 1月：去年2〜12月（105,000×11）＋今年1月（115,000）
   assert.equal(r[0].total, 105_000 * 11 + 115_000);
   assert.equal(r[0].remaining, 1_299_999 - 1_270_000);
@@ -88,4 +88,17 @@ test('社会保険の扶養：直近12か月の累計', () => {
   assert.equal(rollingTotals(year(null, null), cur)[11].missingPrev, 0);
   // ちょうど130万円は超過
   assert.equal(rollingTotals(year(null, null), [[1_300_000, null], ...year(null, null).slice(1)])[0].over, true);
+});
+
+test('社会保険の扶養：交通費は月ごとに違う額を足す', () => {
+  const year = () => Array.from({ length: 12 }, () => [null, null, null]);
+  const cur = year();
+  cur[0] = [80_000, 20_000, 6_200];
+  cur[1] = [75_000, 18_000, 4_800];
+  cur[2] = [null, null, 3_000]; // 給与がなく交通費だけの月も数える
+  const r = rollingTotals(year(), cur);
+  assert.equal(r[0].total, 106_200);
+  assert.equal(r[1].total, 106_200 + 97_800);
+  assert.equal(r[2].total, 106_200 + 97_800 + 3_000);
+  assert.deepEqual([r[2].entered, r[3].entered], [true, false]);
 });

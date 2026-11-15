@@ -49,11 +49,11 @@ export function residentTax(revenue, kyuchi = 1, perCapitaAmount = RULES.residen
 }
 
 // 社会保険の扶養：その月までの直近12か月の累計（交通費を含む総支給額）を月ごとに出す。
-// prev は去年、cur は今年の [1か所目, 2か所目] × 12か月。未入力は null。
-// commuteMonthly は月々の交通費（2か所の合計）で、給与を入れた月にだけ足す。
-export function rollingTotals(prev, cur, commuteMonthly = 0) {
-  const paid = [...prev, ...cur].map((pair) =>
-    pair[0] === null && pair[1] === null ? null : (pair[0] ?? 0) + (pair[1] ?? 0) + commuteMonthly,
+// prev は去年、cur は今年の [1か所目, 2か所目, 交通費（2か所の合計）] × 12か月。未入力は null。
+// 3つとも未入力の月は「まだ入れていない月」として扱う。
+export function rollingTotals(prev, cur) {
+  const paid = [...prev, ...cur].map((row) =>
+    row.every((v) => v === null) ? null : row.reduce((sum, v) => sum + (v ?? 0), 0),
   );
   const limit = RULES.dependentInsurance.limit - 1;
   return cur.map((_, i) => {

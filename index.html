@@ -48,21 +48,30 @@
     </section>
 
     <section class="card" aria-labelledby="h-input">
-      <h2 id="h-input">月ごとの給与</h2>
-      <p class="sub">交通費を除いた、税金が引かれる前の金額を入れます。</p>
+      <h2 id="h-input">月ごとの給与と交通費</h2>
+      <p class="sub">給与は、交通費を除いた税金が引かれる前の金額を入れます。交通費は2か所の合計を、その月に受け取った額で入れます（社会保険の扶養の判定にだけ使います）。</p>
       <table class="months">
         <thead>
           <tr>
             <th scope="col">月</th>
             <th scope="col"><input id="name-0" class="name" aria-label="1か所目の名前" maxlength="12"></th>
             <th scope="col"><input id="name-1" class="name" aria-label="2か所目の名前" maxlength="12"></th>
+            <th scope="col" class="col-label">交通費</th>
           </tr>
         </thead>
         <tbody id="months"></tbody>
       </table>
       <details>
-        <summary>去年の給与（社会保険の扶養の判定に使う）</summary>
+        <summary>去年の給与と交通費（社会保険の扶養の判定に使う）</summary>
         <table class="months">
+          <thead>
+            <tr>
+              <th scope="col">月</th>
+              <th scope="col" class="col-label" id="prev-name-0"></th>
+              <th scope="col" class="col-label" id="prev-name-1"></th>
+              <th scope="col" class="col-label">交通費</th>
+            </tr>
+          </thead>
           <tbody id="prev-months"></tbody>
         </table>
       </details>
@@ -81,10 +90,6 @@
       <label class="field">
         <span>住民税の均等割（森林環境税を含む年額。空欄なら5,500円）</span>
         <input id="perCapita" class="yen" type="text" inputmode="numeric" placeholder="5,500">
-      </label>
-      <label class="field">
-        <span>月々の交通費（2か所の合計。社会保険の扶養の判定に足す）</span>
-        <input id="commuteMonthly" class="yen" type="text" inputmode="numeric" placeholder="0">
       </label>
     </section>
 
