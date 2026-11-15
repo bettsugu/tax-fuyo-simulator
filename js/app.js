@@ -3,6 +3,7 @@ import { RULES } from './rules.js';
 import { incomeTax, residentTax, thresholds, rollingTotals } from './calc.js';
 
 const STORAGE_KEY = `tax-fuyo-simulator:${RULES.year}`;
+const LAST_YEAR_KEY = `tax-fuyo-simulator:${RULES.year - 1}`;
 const $ = (id) => document.getElementById(id);
 const yen = (n) => Math.round(n).toLocaleString('ja-JP');
 const toNumber = (text) => {
@@ -53,12 +54,35 @@ function normalize(raw) {
   return state;
 }
 
+// 去年の書き出しファイルや保存の中身（今年分）を、今年の「去年の給与と交通費」にする。
+// 名前は、今年まだ初期のままなら引き継ぐ。級地と均等割は引き継がない
+// （年が変わるときに rules.js の初期値を確かめ直すので、そちらを使う）。
+function takeLastYear(target, raw) {
+  const last = normalize(raw);
+  target.prevMonths = last.months;
+  const defaults = emptyState().names;
+  target.names = target.names.map((name, i) => (name === defaults[i] ? last.names[i] : name));
+  return target;
+}
+
 function load() {
   try {
-    return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)));
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved !== null) return normalize(JSON.parse(saved));
+    // 今年の保存がまだなく、去年の保存が端末に残っていれば、去年の分として写す。
+    // 去年の保存はそのまま残す（消さない）。
+    const lastYear = localStorage.getItem(LAST_YEAR_KEY);
+    if (lastYear !== null) {
+      const state = takeLastYear(emptyState(), JSON.parse(lastYear));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      $('data-message').textContent =
+        `${RULES.year - 1}年の入力を、「去年の給与と交通費」に写しました。`;
+      return state;
+    }
   } catch {
-    return emptyState();
+    // 読めないときは空の画面で始める
   }
+  return emptyState();
 }
 
 function save() {
@@ -227,14 +251,22 @@ function bindData() {
     if (!file) return;
     try {
       const raw = JSON.parse(await file.text());
-      if (raw.year !== RULES.year) throw new Error('year');
-      if (!confirm('いま入っている内容を、読み込んだ内容で置き換えます。よろしいですか？')) return;
-      state = normalize(raw);
+      if (raw.year === RULES.year) {
+        if (!confirm('いま入っている内容を、読み込んだ内容で置き換えます。よろしいですか？')) return;
+        state = normalize(raw);
+        $('data-message').textContent = '読み込みました。';
+      } else if (raw.year === RULES.year - 1) {
+        // 去年のファイル：その年の12か月分を「去年の給与と交通費」に入れる。今年の分には触らない
+        if (!confirm(`${raw.year}年のファイルです。「去年の給与と交通費」を、このファイルの内容で置き換えます。今年の入力はそのままです。よろしいですか？`)) return;
+        state = takeLastYear(state, raw);
+        $('data-message').textContent = `${raw.year}年の分を「去年の給与と交通費」に読み込みました。`;
+      } else {
+        throw new Error('year');
+      }
       save();
       start();
-      $('data-message').textContent = '読み込みました。';
     } catch {
-      $('data-message').textContent = `読み込めませんでした。${RULES.year}年分の書き出しファイルを選んでください。`;
+      $('data-message').textContent = `読み込めませんでした。${RULES.year}年か${RULES.year - 1}年の書き出しファイルを選んでください。`;
     }
   });
 }
