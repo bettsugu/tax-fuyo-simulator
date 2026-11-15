@@ -132,7 +132,41 @@ function buildMonths(bodyId, key) {
   });
 }
 
+// 年替わりの案内。使う人に向けて書き、アプリの更新は作成者に頼んでもらう。
+// ・年が明けたのに、まだ前の年の画面のまま → 目立つ色で知らせる（日付は端末の時計で見る。外には送らない）
+// ・12月の欄に何か入った → 年末の準備（控えの書き出しと、更新の依頼）を出す
+// 閉じるボタンは付けない。更新すれば自然に消える。
+function renderYearNotice() {
+  const notice = $('year-notice');
+  const thisYear = new Date().getFullYear();
+  const next = RULES.year + 1;
+  let title;
+  let lines;
+  if (thisYear > RULES.year) {
+    title = `この画面は${RULES.year}年の分です`;
+    lines = [
+      `${next}年に受け取る給与は、まだ入れられません。アプリの更新が必要なので、作成者に伝えてください。`,
+      '更新の前に、念のため控えを書き出しておいてください。',
+    ];
+  } else if (state.months[11].some((v) => v !== null)) {
+    title = '年末の準備';
+    lines = [
+      '① 控えを書き出しておいてください。',
+      `② ${next}年1月の給与を入れる前に、アプリの更新が必要です。作成者に伝えてください。`,
+      `更新すると、今年の入力は${next}年の画面の「去年の給与と交通費」に自動で写ります。`,
+    ];
+  } else {
+    notice.hidden = true;
+    return;
+  }
+  notice.hidden = false;
+  notice.className = `card notice${thisYear > RULES.year ? ' warn' : ''}`;
+  $('year-notice-title').textContent = title;
+  $('year-notice-body').replaceChildren(...lines.map((text) => el('p', { textContent: text })));
+}
+
 function render() {
+  renderYearNotice();
   const sums = [0, 1].map((i) => state.months.reduce((sum, pair) => sum + (pair[i] ?? 0), 0));
   const total = sums[0] + sums[1];
   const blank = state.months.filter((pair) => pair[0] === null && pair[1] === null).length;
@@ -236,14 +270,16 @@ function bindSettings() {
 }
 
 function bindData() {
-  $('export').addEventListener('click', () => {
+  const exportData = (messageId) => {
     const day = new Date().toLocaleDateString('sv-SE');
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const link = el('a', { href: URL.createObjectURL(blob), download: `export-${RULES.year}-${day}.json` });
     link.click();
     URL.revokeObjectURL(link.href);
-    $('data-message').textContent = '書き出しました。ファイルは自分で安全な場所に保管してください。';
-  });
+    $(messageId).textContent = '書き出しました。ファイルは自分で安全な場所に保管してください。';
+  };
+  $('export').addEventListener('click', () => exportData('data-message'));
+  $('year-notice-export').addEventListener('click', () => exportData('year-notice-message'));
   $('import').addEventListener('click', () => $('import-file').click());
   $('import-file').addEventListener('change', async (event) => {
     const file = event.target.files[0];
