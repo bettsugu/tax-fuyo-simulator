@@ -21,3 +21,6 @@ desktop.ini
 # 開発用の道具が作るフォルダ
 node_modules/
 dist/
+
+# Claude Code の push 前確認フック（端末ごとの設定）
+.claude/hooks/
